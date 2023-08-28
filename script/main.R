@@ -22,3 +22,4 @@ source(here::here("script","function.R"))
 #新品名が正しく加工されているのかテスト
 source(here::here("script","test.R"))
 
+
