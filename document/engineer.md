@@ -1,0 +1,202 @@
+薬価基準収載医薬品コードにもとづく医薬品名
+================
+2023-07-11 (updated: 2023-08-28)
+
+## 加工関数enginnerの精度検証
+
+## 概要とデータの読み込み
+
+condition関数により、加工が必要と識別された変数に対し加工を行なう。
+ここでは、その関数であるengineer関数の精度を検証していく。
+検証方法に関しては、condition.Rmdのテストの仕組みを参照。
+最初に、データに何も手を加えない関数を検討する。
+これは、engineer関数が上手く機能し、検証手順に問題ないのか確認するためである。
+問題ないことが確認されたら、適切な加工方法を見つけるため、逐一加工方法の評価を
+行い、探索していく。
+
+まずは、libraryの読み込みを行なう。
+
+``` r
+library(tidyverse)
+library(stringr)
+library(tidyr)
+library(here)
+library(dplyr)
+```
+
+function.Rを読み込む。
+
+``` r
+source(here::here("rscript","function.R"))
+```
+
+データを読み込む。重複を含まないようにし、欠測は取り除く。
+
+``` r
+path <- here("data", "2023_06_16.csv")
+df <- read_csv(
+  path,
+  locale = locale(encoding = "Shift-jis"),
+  col_types = cols(.default = col_character())
+  ) %>% 
+  distinct(品名) %>% 
+  drop_na(品名)
+```
+
+## ①手を加えないengineer関数
+
+最初に何も手を加えない関数でテストする。
+この際のengineer関数は以下の通りである。 「新品名 =
+品名」より、データに手を加えていないことがわかる。
+
+``` r
+engineer <- function(df){
+  df_engineered <- df %>% 
+    mutate(新品名 = 品名 )
+  return(df_engineered)
+} 
+```
+
+ステップ1：condition関数で、加工対象か否か識別する。
+
+``` r
+to_engineer <- df %>% filter(condition(品名)) 
+not_to_engineer <- df %>% filter(!condition(品名))
+```
+
+ステップ2：ステップ１で加工すべき変数、すべきではない変数をそれぞれengineer関数を用いて加工する。
+
+``` r
+df_engineered <- engineer(to_engineer)
+not_df_enginner <- engineer(not_to_engineer)
+```
+
+ステップ3：加工すべき変数のうち、加工後の変数【新品名】を
+再度condition関数の引数に代入する。これは、加工後の変数が再度conditionにひっかかるか確認するためである。
+
+``` r
+to_engineer_again <- df_engineered %>% filter(condition(新品名)) 
+to_engineer_ok <- df_engineered %>% filter(!condition(新品名))
+```
+
+検証結果を可視化するため、それぞれの変数の総数を集計する。
+
+``` r
+#加工しないといけないデータ数
+to_engineer_num <- df %>% filter(condition(品名)) %>% nrow()
+#新品名がcoditionを修正できたデータ数
+to_engineer_ok_num <-  to_engineer_ok %>% nrow()
+#新品名が再度conditionにひっかかったデータ数
+to_engineer_again_num <- to_engineer_again %>% nrow()
+```
+
+ステップ4：加工すべきでないと識別されたものが無加工であったのか検証する。
+(③と④の検証)
+
+``` r
+mistake_change <- sum(not_df_enginner$品名 %in% not_df_enginner$新品名 == FALSE)
+no_change <- sum(not_df_enginner$品名 %in% not_df_enginner$新品名 == TRUE)
+```
+
+### 表の作成
+
+``` r
+name <- c("加工しないといけないデータ数",
+          "①新品名がconditionに引っかからないデータ数",
+          "②新品名が再度conditionに引っかかったデータ数",
+          "③加工すべきでない変数を、誤って加工してしまう",
+          "④加工すべきでない変数を、正しく無加工")
+
+outcome <- c(to_engineer_num,
+             to_engineer_ok_num,
+             to_engineer_again_num,
+             mistake_change,
+             no_change)
+outcome_table <- data.frame(cbind(name,outcome))
+print(outcome_table)
+```
+
+    ##                                            name outcome
+    ## 1                  加工しないといけないデータ数    2939
+    ## 2    ①新品名がconditionに引っかからないデータ数       0
+    ## 3  ②新品名が再度conditionに引っかかったデータ数    2939
+    ## 4 ③加工すべきでない変数を、誤って加工してしまう       0
+    ## 5         ④加工すべきでない変数を、正しく無加工   30867
+
+今回の関数は無加工であるため、condition関数で加工対象となった変数は、
+engineer関数での加工後も再度加工対象となっている。
+これで、engineer関数が機能していることがわかる。
+
+## ② conditionを加工するengineer_sec関数
+
+今度は、conditionに加工を行う関数を扱う。
+この際のenginner_sec関数は以下の通りである。「新品名 =
+str_replace_all・・・」より、加工が行われていることがわかる。
+加工方法の第一候補として、condition関数作成の際に
+発見した修正すべき箇所すべてを加工し、その妥当性を評価する。
+
+``` r
+engineer_sec <- function(df){
+  df_engineered <- df %>% 
+    mutate(
+      新品名 = str_replace_all(
+        品名, c(
+          "局　"   = "",
+          "局※　" = "",
+          "局）"   = "",
+          "局麻　" = "",
+          "麻　"   = "",
+          "（麻）" = "",
+          "※　"   = ""
+        )
+      )
+    )
+  return(df_engineered)
+} 
+```
+
+これからのステップは、無加工の関数で行ったものと同じであるため、コードだけ記しておく
+
+ステップ２
+
+``` r
+df_engineered_sec <- engineer_sec(to_engineer)
+not_df_engineered_sec <- engineer_sec(not_to_engineer)
+```
+
+ステップ３
+
+``` r
+to_engineer_again_sec <- df_engineered_sec %>% filter(condition(新品名))
+to_engineer_ok_sec <- df_engineered_sec %>% filter(!condition(新品名))
+to_engineer_ok_num_sec <-  to_engineer_ok_sec %>% nrow()
+to_engineer_again_num_sec <- to_engineer_again_sec %>% nrow()
+```
+
+ステップ4
+
+``` r
+mistake_change_sec <- sum(not_df_engineered_sec$品名 %in% not_df_engineered_sec$新品名 == FALSE)
+no_change_sec <- sum(not_df_engineered_sec$品名 %in% not_df_engineered_sec$新品名 == TRUE)
+```
+
+### 表の作成
+
+``` r
+outcome_sec <- c(to_engineer_num,
+                 to_engineer_ok_num_sec,
+                 to_engineer_again_num_sec,
+                 mistake_change_sec,
+                 no_change_sec)
+outcome_table_sec <- data.frame(cbind(name,outcome_sec))
+print(outcome_table_sec)
+```
+
+    ##                                            name outcome_sec
+    ## 1                  加工しないといけないデータ数        2939
+    ## 2    ①新品名がconditionに引っかからないデータ数        2939
+    ## 3  ②新品名が再度conditionに引っかかったデータ数           0
+    ## 4 ③加工すべきでない変数を、誤って加工してしまう           0
+    ## 5         ④加工すべきでない変数を、正しく無加工       30867
+
+今回の表で、再度conditionに引っかかったものはなく、全て修正することができたことを示している。それゆえ、第一候補であったengineer_sec関数は、今回発見されたconditioに関しては、想定通りの修正を行う関数であることが証明された。

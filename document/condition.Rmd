@@ -1,0 +1,267 @@
+---
+title: "薬価基準収載医薬品コードにもとづく医薬品名"
+date: "2023-07-11 (updated: `r Sys.Date()`)"
+
+editor_options: 
+  markdown: 
+    wrap: 72
+    
+output: github_document
+---
+
+## はじめに
+
+薬価基準収載医薬品コードは、医薬品を成分名・規格などを用いて分類する
+ためのものである。厚労省が、定期的にコードを更新しているが、それらの
+コードは統一されておらず、一部加工が必要である。そのため、今回の目的
+は、薬価基準収載医薬品コードの加工を行うことである。
+
+
+
+## データの事前調査
+
+実データファイルに、「局」「麻」「※」の有無を示す項目があり、
+実際データを目視で確認してみると、3つ文字に関して
+加工を加えないといけない場面が多かったため、
+これらの文字を含んでいるデータを確認対象とし
+修正すべきデータの抽出を行った。以後、Rを用いて調査・加工を行う。
+
+必要なライブラリーを読み込む。
+
+```{r message=FALSE,warning=FALSE}
+library(here)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+```
+
+無加工な実データを読み込む。
+
+```{r}
+path <- here("data", "2023_06_16.csv")
+df <- read_csv(
+  path,
+  locale = locale(encoding = "Shift-jis"),
+  col_types = cols(.default = col_character()),
+  )
+df
+```
+
+なお、重複を含まないようにする。また、欠測値が1つあったが、conditionの網羅性の評価であり、欠測は扱わない為、欠測値は取り除いた。
+
+```{r}
+df <- df %>% 
+  distinct(品名) %>% 
+  drop_na(品名)
+df
+```
+
+
+## 加工するデータのパターン把握
+
+### 局に対して
+
+品名の中に、どんな形であれ「局」が含まれているものを抽出。また、該当するデータ数を出力する。
+
+```{r}
+df_kyoku <- df %>% filter(str_detect(品名,"局")) 
+df_kyoku_num <- df_kyoku %>% nrow()
+# print(df_kyoku_num)
+```
+
+すると、該当する品名が `r df_kyoku_num` 個存在することが分かった。
+
+抽出したデータを目視して、パターンの把握を行い、「局 + 全角スペース
+」「局※」「局）」「局麻」の4つの加工しなければならないパターンが発見された。
+
+また、「局麻用フリードカイン注」のような「局」が含まれていても加工しなくてよいデータも確認された。
+
+| 変数名      | パターン          |
+|-------------|-------------------|
+| kyoku_all   | 局含むデータ全数  |
+| kyoku_space | 局 + 全角スペース |
+| kyoku_kome  | 局※               |
+| kyoku_kakko | 局）  　　　　　 |
+| kyoku_asa   | 局麻              |
+
+### 麻に対して
+
+品名の中に、どんな形であれ「麻」が含まれているものを抽出。また、該当するデータ数を出力する。
+
+```{r}
+df_asa <- df %>% filter(str_detect(品名,"麻")) 
+df_asa_num <- df_asa %>% nrow()
+#print(df_asa_num)
+```
+すると、該当する品名が `r df_asa_num` 個存在することが分かった。
+抽出したデータを目視して、パターンの把握を行い、「（麻）」「麻+全角スペース」「局麻　」の3つの加工しなければならないパターンが発見された。
+
+
+| 変数名    | パターン           |
+|-----------|--------------------|
+| asa_all   | 麻含むデータ全数　 |
+| asa_space | 麻 + 全角スペース  |
+| asa_kakko | （麻）             |
+
+### ※に対して
+
+品名の中に、どんな形であれ「※」が含まれているものを抽出。また、該当するデータ数を出力する。
+
+```{r}
+df_kome <- df %>% filter(str_detect(品名,"※")) 
+df_kome_num <- df_kome %>% nrow()
+#print(df_kome_num)
+```
+すると、該当する品名が `r df_kome_num` 個存在することが分かった。
+抽出したデータを目視して、パターンの把握を行い、
+「※ +全角スペース」というパターンが発見された。
+
+| 変数名     | パターン         |
+|------------|------------------|
+| kome_all   | ※ 含むデータ全数 |
+| kome_space | ※ + 全角スペース |
+
+イレギュラーなパターンを発見するため、「match」という'局','麻','※'のどれか一つでも含んでいたらTRUEを、含んでいなければFALSEを返す変数も作成する。
+
+## 集計
+
+パターン間の重複を考慮し、パターンごとのデータ数を集計(集計結果は下記に記載)
+
+※「(局）」左かっこが半角で、右かっこが全角の本来加工しなければならないデータを加工しなくてよいパターンで確認された。このようなイレギュラーなパターンはその都度対応する。今回は、「局）」というパターンで再度抽出を行った。該当した場合は、その変数にTRUEを返し、該当しない場合は、FALSEを返す。
+
+```{r}
+df_add <- df %>% 
+  mutate(
+    match = str_detect(品名,"局")|str_detect(品名,"麻")|str_detect(品名,"※"),
+    kyoku_space = str_detect(品名,"局　"),
+    kyoku_kome = str_detect(品名,"局※"),
+    kyoku_kakko = str_detect(品名,"局）"),
+    kyoku_asa = str_detect(品名,"局麻　"),
+    asa_space = str_detect(品名,"麻　"),
+    asa_kakko = str_detect(品名,"（麻）"),
+    kome_space = str_detect(品名,"※　"),
+  ) 
+```
+
+上記で作成されたdf_addを可視化するため、出力を「1 or 0」の二値とする。
+集計結果は、下記の表1の通りである。
+
+```{r}
+# across→「TRUE or FALSE」を「1 or 0」
+# summarizeは、group_by(グループ分け)とセットで使う。
+# summarizeのn()は、カウントである。
+table <- df_add %>% 
+  mutate(across(where(is.logical), as.integer)) %>% 
+  group_by(
+    match,
+    kyoku_space,
+    kyoku_kome,
+    kyoku_kakko,
+    kyoku_asa,
+    asa_space,
+    asa_kakko,
+    kome_space,
+    #condition,
+  ) %>% 
+  summarize(count = n(), .groups = "drop") %>% 
+  #列の並び替えを行う
+  arrange(-match,-kyoku_space,-kyoku_kome,-kyoku_kakko,
+          -kyoku_asa,-asa_space,-asa_kakko,-kome_space) 
+
+
+table %>% 
+  knitr::kable()
+```
+
+**表1　無加工データのパターン別の集計表**
+
+
+表の見方について説明を行う。表の1行目は、「match」と「kyoku_space」が1となり、残りの変数は0となっている。つまり、「※+全角スペース」を含む変数は、69あることがわかる。一番下の行であるallとパターンに関して全て0のcountは、データの全数である。
+
+最後に、「match」が1で残りが全て0である。こちらは、イレギュラーな修正すべきパターンの可能性があるため、目視して確認を行う。
+
+```{r}
+to_check <- filter(df_add,match == TRUE,
+            kyoku_space == FALSE,
+            kyoku_kome == FALSE,
+            kyoku_kakko == FALSE,
+            kyoku_asa == FALSE,
+            asa_space == FALSE,
+            asa_kakko == FALSE,
+            kome_space == FALSE)
+print(to_check$品名)
+```
+
+上の一覧表を見てわかる通り、修正すべき箇所は見当たらなかった。
+そのため、実データの修正すべきパターンは、全て網羅されていることが示された。
+以上が、実データの事前調査である。
+
+
+## 加工の要否を判定する関数 condition の作成
+
+したがって、加工前および加工後の品名にあたる変数を引数として、引数に与えた品名が
+修正対象か否かを返すcondition関数を以下のように定義する。
+
+この関数を、他のファイル「function.R」に記載してある。
+
+```{r eval=FALSE}
+condition <- function(var){
+  out <- str_detect(var,"局　") | str_detect(var,"局※") | 
+    str_detect(var,"局）") | str_detect(var,"局麻　") |
+    str_detect(var,"麻　") | str_detect(var,"（麻）") |
+    str_detect(var,"※　") 
+  return(out)
+}
+```
+
+function.Rを読み込む。 
+
+```{r}
+source(here::here("rscript","function.R"))
+```
+
+## 加工対象の品名を加工するための関数の作成
+次に、condition関数で加工対象となった変数を加工するengineer関数を作成する。
+※engineer関数は、他のファイル「function.R」に記載してある。
+
+
+## テストの仕組み
+最後に、これまで作成したcondition関数とengineer関数を用いることで、
+修正すべき変数を正しく修正し、修正する必要のない変数はそのままの状態を保てるのかテストを行う。
+※実際のテストは、他のファイル「engineer.RMD」で行っている。
+
+### 加工する前後での変化の種類
+
+変数の加工精度を検証するには、変数を加工するまでに二つのステップが存在する。
+一つ目が、対象変数の識別(condition関数)、二つ目が、対象変数の加工(engineer関数)である。
+
+そのため、加工前後での変化の種類は、以下の4通り存在する。
+
+①加工すべき変数が、想定通り加工できた→conditionに引っかからない
+
+②加工すべき変数が、無加工も含め想定通りではない加工→再度conditionに引っかかる
+
+③加工すべきでない変数を、誤って加工してしまう。「局麻用」など。
+
+④加工すべきでない変数を、正しく無加工。
+
+つまり、変数全て①か④に当てはまればよい。
+
+### 検証方法
+加工前後の変化の仕方がどのようになっているのか検証するには、４つのステップを
+踏む必要がある。
+
+ステップ1：condition関数で、加工対象か否か識別する。
+
+ステップ2：ステップ１で加工すべき変数、すべきではない変数をそれぞれengineer関数
+を用いて加工する。
+
+ステップ3：加工すべき変数に対し、加工後の変数【新品名】を
+再度condition関数の引数に代入する。これは、加工後の変数が再度conditionに
+ひっかかるか確認するためである。　　
+
+ステップ4：加工すべきでない変数に対し、加工前後で変更があるか否かを確認する。
+変更があれば、不要な加工が行われていることとなり、変更がなければ正しい加工を意味する。
+
+最後に、結果を表にまとめ、加工前後での変化の種類を可視化する。
