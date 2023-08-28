@@ -27,7 +27,7 @@ library(dplyr)
 function.Rを読み込む。
 
 ``` r
-source(here::here("rscript","function.R"))
+source(here::here("script","function.R"))
 ```
 
 データを読み込む。重複を含まないようにし、欠測は取り除く。

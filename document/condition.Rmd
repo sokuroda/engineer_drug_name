@@ -30,19 +30,23 @@ library(readr)
 library(dplyr)
 library(tidyr)
 library(stringr)
+library(tidyverse)
 ```
 
 無加工な実データを読み込む。
 
+
 ```{r}
+
 path <- here("data", "2023_06_16.csv")
+
 df <- read_csv(
   path,
   locale = locale(encoding = "Shift-jis"),
-  col_types = cols(.default = col_character()),
-  )
-df
+  col_types = cols(.default = col_character())
+) 
 ```
+
 
 なお、重複を含まないようにする。また、欠測値が1つあったが、conditionの網羅性の評価であり、欠測は扱わない為、欠測値は取り除いた。
 
@@ -214,7 +218,7 @@ condition <- function(var){
 function.Rを読み込む。 
 
 ```{r}
-source(here::here("rscript","function.R"))
+source(here::here("script","function.R"))
 ```
 
 ## 加工対象の品名を加工するための関数の作成

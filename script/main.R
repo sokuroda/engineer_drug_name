@@ -8,7 +8,6 @@ library(tidyverse)
 
 #データの読み込みhere
 path <- "./data/2023_06_16.csv"
-#path <- here("..","data", "2023_06_16.csv")
 
 df <- read_csv(
   path,
