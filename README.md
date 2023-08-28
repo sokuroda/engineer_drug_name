@@ -16,7 +16,7 @@
 ### data
  今回扱うデータは、観測数60241、変数の数は7である。
  変数は、「区分」「薬価基準収載医薬品コード」「成分名」「規格」「品名」「メーカー名」「年度」である。
- 公開情報の取得・データの連結に関しては、https://github.com/kkirino/mhlw_codeを参照して頂きたい。
+ 公開情報の取得・データの連結に関しては、https://github.com/kkirino/mhlw_code
 
 ### script
 scriptには、「main.R」「function.R」「test.R」がある。「main.R」は、データと以下のRファイルの読み込みを行う。
