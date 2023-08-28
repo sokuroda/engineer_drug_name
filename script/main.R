@@ -6,9 +6,10 @@ library(tidyr)
 library(stringr)
 library(tidyverse)
 
-#データの読み込みhere("./datafolder/datafile.csv")
-#path <- here("data", "2023_06_16.csv")
-path <- "C:/Users/sokur/OneDrive/ドキュメント/成育医療/薬価/yakka/data/2023_06_16.csv"
+#データの読み込みhere
+path <- "./data/2023_06_16.csv"
+#path <- here("..","data", "2023_06_16.csv")
+
 df <- read_csv(
   path,
   locale = locale(encoding = "Shift-jis"),
@@ -17,9 +18,7 @@ df <- read_csv(
 
 #「品名」の加工
 #functioのsource
-source(here::here("function.R"))
+source(here::here("script","function.R"))
 #新品名が正しく加工されているのかテスト
-source(here::here("test.R"))
+source(here::here("script","test.R"))
 
-# 「薬価基準収載医薬品こ」
-a_warfarin_cat <- as.numeric(a_warfarin_day != "")

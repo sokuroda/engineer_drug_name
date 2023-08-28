@@ -10,12 +10,6 @@ condition <- function(var){
   return(out)
 }
 
-engineer <- function(df){
-  df_engineered <- df %>% 
-    mutate(新品名 = 品名 )
-  return(df_engineered)
-} 
-
 engineer_sec <- function(df){
   df_engineered <- df %>% 
     mutate(
